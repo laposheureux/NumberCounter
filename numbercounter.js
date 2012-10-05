@@ -22,15 +22,26 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //--------------------------------------------------------------------
 
-jQuery NumberCounter - v0.4
+jQuery NumberCounter - v0.5
 
 NumberCounter is a small jQuery plugin to facilitate a 'count-up' animation for
 numerical statistics
 
 Requirements:
-	jQuery >= 1.7.2 (jQuery's built in easing functions 'linear' and 'swing' changed to take a single input at this version)
+	jQuery >= 1.4 when not using easing (settings.easing = false)
+	jQuery >= 1.4 when using easing along with jQuery.easing
+	jQuery >= 1.7.2 when using easing without jQuery.easing
+
+Suggested pairings:
+	jQuery Waypoints
 
 Changelog:
+	v0.5
+		- Clarify version requirements
+		- Add support for function parameters to be called at specific moments during the execution of the plugin
+		- Improve fade in logic
+		- Implement current value tracking so it can be passed to registered functions
+		- Bug fix from old naming convention
 	v0.4
 		- Publish to GitHub and begin formal version management. Easing (jQuery 1.7.2 swing/linear or jQuery.easing.1.3.js)
 	v0.3
@@ -42,13 +53,10 @@ Changelog:
 		
 Feature plans:
 	- Support older versions of the jQuery easing functions from older jQuery versions
-	- Event dispatch at specific events (starting, started, step, finished at first)
 	- Expose getters/setters to change settings defined at initial creation
 
 Acknowledgements:
 	- requestAnimationFrame polyfill: http://my.opera.com/emoller/blog/2011/12/20/requestanimationframe-for-smart-er-animating
-	- Class-based jQuery plugin concept: http://www.virgentech.com/blog/2009/10/building-object-oriented-jquery-plugin.html
-		- I have deliberatly opted against using the linked-to 'improvement' as I feel chaining is more important than the inconvenience of grabbing the class with .data()
 */
 
 (function($, window, undefined) {
@@ -89,15 +97,18 @@ Acknowledgements:
 			        fadeIn: false,
 			    fadeInTime: 300,
 			        easing: false,
-			easingFunction: 'linear'
+			easingFunction: 'linear',
+			      onUpdate: undefined,
+			       onStart: undefined,
+			         onEnd: undefined
 		}, options || {});
 		
 		var animationID;
-		var startVal, endVal;
+		var startVal, curVal, endVal;
 		var startTime = null;
 		var precision = 0;
 		
-		//----- Public Functions -----
+		//----- PUBLIC -----
 		
 		this.updateNumbers = function(st, en) {
 			//if input is provided, do the updating for the user
@@ -129,14 +140,41 @@ Acknowledgements:
 			//test if values are the same, if they are, animation is not required
 			if (startVal == endVal) {
 				logger('NumberCounter Notice: The starting and ending values are the same, no animation will occur.');
+				
+				if (settings.onStart !== undefined && typeof settings.onStart === 'function') {
+					settings.onStart.call($elem);
+				}
+				
 				if (settings.fadeIn) {
-					$elem.css('opacity', 1);
+					if ($elem.css('display') == 'none') {
+						$elem.css('opacity', 0);
+						$elem.show();
+					}
+					$elem.animate({opacity: 1}, settings.fadeInTime, function() {
+						if (settings.onEnd !== undefined && typeof settings.onEnd === 'function') {
+							settings.onEnd.call($elem);
+						}
+					});
+				}
+				
+				if (settings.onEnd !== undefined && typeof settings.onEnd === 'function') {
+					settings.onEnd.call($elem);
 				}
 			}
 			else {
 				startVal = parseFloat(startVal);
 				endVal = parseFloat(endVal);
+				curVal = null;
+				
+				if (settings.onStart !== undefined && typeof settings.onStart === 'function') {
+					settings.onStart.call($elem);
+				}
+				
 				if (settings.fadeIn) {
+					if ($elem.css('display') == 'none') {
+						$elem.css('opacity', 0);
+						$elem.show();
+					}
 					$elem.animate({opacity: 1}, settings.fadeInTime);
 				}
 				startTime = new Date();
@@ -145,9 +183,7 @@ Acknowledgements:
 			}
 		};
 		
-		//----- End Public Functions -----
-		
-		//----- Private Functions -----
+		//----- PRIVATE -----
 		
 		var count = function() {
 			animationID = requestAnimationFrame(count);
@@ -162,31 +198,50 @@ Acknowledgements:
 				if (settings.easing) {
 					if (jQuery.easing['jswing'] !== undefined && settings.easingFunction != 'jswing') {
 						//jQuery.easing library is available (multi variable input)
-						$elem.text(jQuery.easing[settings.easingFunction](null, timeElapsed, startVal, endVal - startVal, settings.duration).toFixed(precision));
+						curVal = jQuery.easing[settings.easingFunction](null, timeElapsed, startVal, endVal - startVal, settings.duration).toFixed(precision);
+						$elem.text(curVal);
 					}
 					else {
 						//default jQuery (>= 1.7.2) easing is all that is available (single variable input/output)
 						if (endVal > startVal) {
-							$elem.text((startVal + (endVal - startVal) * jQuery.easing[settings.easingFunction](proportionOfTimeElapsed)).toFixed(precision));
+							curVal = (startVal + (endVal - startVal) * jQuery.easing[settings.easingFunction](proportionOfTimeElapsed)).toFixed(precision);
+							$elem.text(curVal);
 						}
 						else if (startVal > endVal) {
-							$elem.text((endVal + (startVal - endVal) * (1 - jQuery.easing[settings.easingFunction](proportionOfTimeElapsed))).toFixed(precision));
+							curVal = (endVal + (startVal - endVal) * (1 - jQuery.easing[settings.easingFunction](proportionOfTimeElapsed))).toFixed(precision);
+							$elem.text(curVal);
 						}
 					}
 				}
 				else {
 					if (endVal > startVal) {
-						$elem.text((startVal + (endVal - startVal) * proportionOfTimeElapsed).toFixed(precision));
+						curVal = (startVal + (endVal - startVal) * proportionOfTimeElapsed).toFixed(precision)
+						$elem.text(curVal);
 					}
 					else if (startVal > endVal) {
-						$elem.text((endVal + (startVal - endVal) * (1 - proportionOfTimeElapsed)).toFixed(precision));
+						curVal = (endVal + (startVal - endVal) * (1 - proportionOfTimeElapsed)).toFixed(precision)
+						$elem.text(curVal);
 					}
+				}
+				
+				if (settings.onUpdate !== undefined && typeof settings.onUpdate === 'function') {
+					settings.onUpdate.call($elem, curVal, proportionOfTimeElapsed);
 				}
 			}
 			else {
-				$elem.text(endVal.toFixed(precision));
+				curVal = endVal.toFixed(precision);
+				$elem.text(curVal);
+				
+				if (settings.onUpdate !== undefined && typeof settings.onUpdate === 'function') {
+					settings.onUpdate.call($elem, curVal, 1);
+				}
+				
 				cancelAnimationFrame(animationID);
 				startTime = null;
+				
+				if (settings.onEnd !== undefined && typeof settings.onEnd === 'function') {
+					settings.onEnd.call($elem);
+				}
 			}
 		};
 		
@@ -235,28 +290,25 @@ Acknowledgements:
 		};
 		
 		var fatalError = function() {
-			logger('NumberCounter FATAL ERROR: A combination of notices or errors will result in malfunction. NumberCounter will be removed from the element with ID: ' + $elem.attr('id') + '.');
+			logger('NumberCounter FATAL ERROR: A combination of notices or errors will result in malfunction on ' + $elem.attr('id') + '.');
+			
 			//this won't work due to timing of how the constructor is setup
-			$.removeData($elem, 'numbercounter');
+			//$.removeData($elem, 'numbercounter');
 		};
 		
-		//----- End Private Functions -----
-		
-		//----- Initialize -----
+		//----- INITIALIZE -----
 		
 		startVal = $elem.attr('data-numbercounter-start');
 		endVal = $elem.text();
 		
 		checkInputValidityAndSetup();
-		
-		//----- Initialize -----
 	};
 	
 	$.fn.NumberCounter = function(options) {
 		return this.each(function() {
 			var $element = $(this);
 			
-			if ($element.data('numberroller')) return;
+			if ($element.data('numbercounter')) return;
 			
 			var numbercounter = new NumberCounter(this, options);
 			

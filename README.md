@@ -7,7 +7,8 @@ Requires
 --------
 
 - jQuery 1.7.2 if using jQuery's swing or linear functions
-	- Currently determining an older minimum when relying upon jQuery.easing.1.3.js (and will be solving this issue to allow older stock jQuery soon)
+- jQuery 1.4 when relying upon jQuery.easing.1.3.js
+- Can also be used without easing and has been tested down to jQuery 1.4. It may work with 1.3.x.
 
 Best used with
 --------------
@@ -18,4 +19,4 @@ Best used with
 Examples
 --------
 
-- Coming soon!
+- http://www.bu.edu/bostonia/summer12/magic-numbers/
